@@ -16,7 +16,7 @@ struct Proceso {
     int waitTime;          // Total accumulated waiting time
     int lastExecutedTime;  // Last time the process was executed
 };
-vector<int> split(const string& cadena) {
+vector<int> split(const string cadena) {
     vector<int> resultado;
     string tempo = "";
     int i = 0;
@@ -34,7 +34,7 @@ vector<int> split(const string& cadena) {
     return resultado;
 }
 
-vector<vector<int>>guardarinstrucciones(const string& nombreArchivo){
+vector<vector<int>>guardarinstrucciones(const string nombreArchivo){
     vector<vector<int>> resultado;
     ifstream archivo(nombreArchivo);
     string linea;
@@ -45,7 +45,7 @@ vector<vector<int>>guardarinstrucciones(const string& nombreArchivo){
         }
         archivo.close();
     } else {
-        cout << "No se pudo abrir el archivo." << std::endl;
+        cout << "No se pudo abrir el archivo." << endl;
     }
     return resultado;
 }
@@ -59,12 +59,11 @@ bool compareBurstTime(const Proceso &a, const Proceso &b) {
 void RoundRobinMLFQ(queue<Proceso> q_rr, int timeOS, int quantum, vector<Proceso> finished,queue<Proceso> q_rrnext){
     Proceso p = q_rr.front();
     q_rr.pop();
-    if (p.started == false) {
+    if (p.started == false){
         p.start = timeOS;
         p.started = true;
         p.lastExecutedTime = timeOS - p.arrival;
     }
-
     int timeSlice = min(quantum, p.BTrestante);
     p.waitTime += timeOS - p.lastExecutedTime;
     timeOS += timeSlice; 
@@ -88,6 +87,7 @@ void RoundRobinMLFQ2(queue<Proceso> q_rr2, int timeOS, int quantum, vector<Proce
         p.start = timeOS;
         p.started = true;
         p.lastExecutedTime = timeOS;
+        p.waitTime+= timeOS - p.arrival;
     }else{
         p.waitTime += timeOS - p.lastExecutedTime;
     }
@@ -180,7 +180,7 @@ void ShortestJobFirstMLQ(vector<Proceso> q_sjf, int timeOS, vector<Proceso> fini
 
 void FCFSMFLQ(queue<Proceso> q_fcfs, int timeOS, vector<Proceso> finished,queue<Proceso> q_rr1 ,queue<Proceso> q_rr2) {
     Proceso p = q_fcfs.front();
-    if (!p.started) {
+    if (!p.started){
         p.start = timeOS;
         p.started = true;
         p.waitTime = timeOS - p.arrival;
@@ -327,7 +327,6 @@ void MLFQ(vector<Proceso>procesos, int quantumRR1,int quantumRR2){
         cout << "Process " << p.pid << " executed from " << p.start << " to " << p.finish;
         cout << " with waiting time: " << waitingTime << endl;
     }
-
     cout << "Waiting Time: " << totalWaitingTime << endl;
     cout << "Turnaround Time: " << totalTurnaroundTime << endl;
 
@@ -356,7 +355,7 @@ void menu(){
         cout << "3. Salir" << endl;
         cout << "Selecciona una opción: ";
         getline(cin, op);
-        opcion = op[0]- '0';
+        opcion = op[0] - '0';
         switch(opcion) {
             case 1:
                 MLFQ(procesos,2,4);
@@ -371,9 +370,7 @@ void menu(){
                 cout << "Opción no válida, por favor selecciona nuevamente." << endl;
                 break;
             }
-
     }while(opcion != 3);
-
 }
 int main(){
     menu();
