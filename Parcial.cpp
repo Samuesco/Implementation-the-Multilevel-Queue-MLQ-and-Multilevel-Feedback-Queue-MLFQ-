@@ -248,12 +248,12 @@ void MLQ(vector<Proceso> &procesos, int quantumRR) {
     int index = 0;
     // Agregar los procesos a sus respectivas Colas
     while (index < n ) {
-            if (procesos[index].priority == 1) {
-                q_rr.push(procesos[index]);  // Round Robin queue
-            } else if (procesos[index].priority == 2) {
-                q_sjf.push_back(procesos[index]);  // Shortest Job First queue
+            if (procesos[index].priority == 1){
+                q_rr.push(procesos[index]); // Round Robin queue
+            } else if (procesos[index].priority == 2){
+                q_sjf.push_back(procesos[index]); // Shortest Job First queue
             } else {
-                q_fcfs.push(procesos[index]);  // First Come First Served queue
+                q_fcfs.push(procesos[index]); // First Come First Served queue
             }
             index++;
     }
@@ -384,10 +384,10 @@ void menu(){
         opcion = op[0] - '0';
         switch(opcion) {
             case 1:
-                MLFQ(procesos,2,4);
+                MLFQ(procesos,2,4);  //  Definen los quuantum
                 break;
             case 2:
-                MLQ(procesos,2);
+                MLQ(procesos,2); // Definen los quantums
                 break;
             case 3:
                 cout << "Saliendo del programa" << endl;
