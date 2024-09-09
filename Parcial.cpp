@@ -3,44 +3,63 @@
 #include <vector>
 #include <algorithm>
 #include <fstream>
+#include <typeinfo> 
+
 using namespace std;
 struct Proceso {
     int pid;               // Process ID
     int arrival;           // Arrival Time
     int BT;                // Burst Time
     int BTrestante;        // Remaining Burst Time
-    int start;             // Start Time
-    int finish;            // Finish Time
+    int start = 0;             // Start Time / response time
+    int finish = 0;            // Finish Time
     bool started = false;  // Flag to check if process has started
     int priority;          // Priority of the process
-    int waitTime;          // Total accumulated waiting time
-    int lastExecutedTime;  // Last time the process was executed
+    int waitTime = 0;          // Total accumulated waiting time
+    int lastExecutedTime = 0;  // Last time the process was executed
+    int quantumres = 0;
 };
-vector<int> split(const string cadena) {
-    vector<int> resultado;
+void imprimirProceso(const Proceso& p) {
+    cout << p.pid << " "
+              << p.arrival << " "
+              << p.BT << " "
+              << p.BTrestante << " "
+              << p.priority << " "
+              << p.start << " "
+              << p.finish << " "
+              << p.started << " "
+              << p.waitTime << " "
+              << p.lastExecutedTime << " "
+              << p.quantumres << endl;
+}
+vector<string> split(const std::string& cadena) {
+    vector<string> resultado;
     string tempo = "";
     int i = 0;
     while (i < cadena.size()) {
         if (cadena[i] == ' ') {
             if (!tempo.empty()) {
-                resultado.push_back(stoi(tempo));
+                resultado.push_back(tempo);
                 tempo = ""; 
             }
         }else {
             tempo += cadena[i];
         }
         i++;
+    }if (!tempo.empty()) {
+        resultado.push_back(tempo);
     }
+
     return resultado;
 }
 
-vector<vector<int>>guardarinstrucciones(const string nombreArchivo){
-    vector<vector<int>> resultado;
+vector<vector<string>>guardarinstrucciones(const string nombreArchivo){
+    vector<vector<string>> resultado;
     ifstream archivo(nombreArchivo);
     string linea;
     if (archivo.is_open()) {
         while (getline(archivo, linea)) {
-            vector<int> instruccion = split(linea);
+            vector<string> instruccion = split(linea);
             resultado.push_back(instruccion);
         }
         archivo.close();
@@ -56,13 +75,13 @@ bool compareArrival(const Proceso &a, const Proceso &b) {
 bool compareBurstTime(const Proceso &a, const Proceso &b) {
     return a.BTrestante < b.BTrestante;  // Sort by shortest job first
 }
-void RoundRobinMLFQ(queue<Proceso> q_rr, int timeOS, int quantum, vector<Proceso> finished,queue<Proceso> q_rrnext){
+int RoundRobinMLFQ(queue<Proceso> &q_rr, int &timeOS, int quantum, vector<Proceso> &finished,queue<Proceso> &q_rrnext){
     Proceso p = q_rr.front();
     q_rr.pop();
     if (p.started == false){
         p.start = timeOS;
         p.started = true;
-        p.lastExecutedTime = timeOS - p.arrival;
+        p.lastExecutedTime = timeOS;
     }
     int timeSlice = min(quantum, p.BTrestante);
     p.waitTime += timeOS - p.lastExecutedTime;
@@ -79,45 +98,48 @@ void RoundRobinMLFQ(queue<Proceso> q_rr, int timeOS, int quantum, vector<Proceso
     }else{
         p.priority++;
         q_rrnext.push(p);  // Reincerta en la cola siguiente
-    }        
-}
-void RoundRobinMLFQ2(queue<Proceso> q_rr2, int timeOS, int quantum, vector<Proceso> finished,queue<Proceso> q_rr1,queue<Proceso> q_rrnext){
-    Proceso p = q_rr2.front();
-    if (p.started == false) {
-        p.start = timeOS;
-        p.started = true;
-        p.lastExecutedTime = timeOS;
-        p.waitTime+= timeOS - p.arrival;
-    }else{
-        p.waitTime += timeOS - p.lastExecutedTime;
     }
+    return 0;        
+}
+int RoundRobinMLFQ2(queue<Proceso> &q_rr2, int &timeOS, int quantum, vector<Proceso> &finished,queue<Proceso> &q_rr1,queue<Proceso> &q_rrnext){
     int timeSlice = 0;
-    while (timeSlice < quantum && p.BTrestante > 0) {
-        if (!q_rr1.empty() && q_rr1.front().arrival <= timeOS) {
-            p.lastExecutedTime = timeOS;
-            return;  // Interrumpir y ejecutar el proceso de mayor prioridad
+    if (q_rr2.front().started == false) {
+        q_rr2.front().start = timeOS;
+        q_rr2.front().started = true;
+        q_rr2.front().lastExecutedTime = timeOS;
+        q_rr2.front().waitTime+= timeOS - q_rr2.front().arrival;
+    }else{
+        q_rr2.front().waitTime += timeOS - q_rr2.front().lastExecutedTime;
+        timeSlice = q_rr2.front().quantumres;
+    }
+    while (timeSlice < quantum && q_rr2.front().BTrestante > 0) {
+        if (!q_rr1.empty() && q_rr1.front().arrival <= timeOS){
+            q_rr2.front().quantumres = timeSlice;
+            q_rr2.front().lastExecutedTime = timeOS;
+            return 1;  // Interrumpir y ejecutar el proceso de mayor prioridad
         }
-        p.BTrestante--;
+        q_rr2.front().BTrestante--;
         timeOS++;
         timeSlice++;
     }
-    q_rr2.pop();
-    if (p.BTrestante == 0) {
-        p.finish = timeOS;
-        finished.push_back(p);
+    
+    if (q_rr2.front().BTrestante == 0) {
+        q_rr2.front().finish = timeOS;
+        finished.push_back(q_rr2.front());
     }else {
-        p.priority++;
-        q_rrnext.push(p);  // Reincerta en la cola siguiente
-    }        
-
+        q_rr2.front().priority++;
+        q_rrnext.push(q_rr2.front());  // Reincerta en la cola siguiente
+    }
+    q_rr2.pop();
+    return 0;        
 }
-void RoundRobinMLQ(queue<Proceso> q_rr, int timeOS, int quantum, vector<Proceso> finished) {
+void RoundRobinMLQ(queue<Proceso> &q_rr, int &timeOS, int quantum, vector<Proceso> &finished) {
     Proceso p = q_rr.front();
     q_rr.pop();
     if (p.started == false) {
         p.start = timeOS;
         p.started = true;
-        p.lastExecutedTime = timeOS - p.arrival;
+        p.lastExecutedTime = timeOS;
     }
     int timeSlice = min(quantum, p.BTrestante);
     p.waitTime += timeOS - p.lastExecutedTime;
@@ -136,100 +158,84 @@ void RoundRobinMLQ(queue<Proceso> q_rr, int timeOS, int quantum, vector<Proceso>
     }            
 }
 
-void ShortestJobFirst(vector<Proceso> q_sjf, int timeOS, vector<Proceso> finished) {
-    sort(q_sjf.begin(), q_sjf.end(), compareBurstTime);// Sort by shortest job first
-    Proceso p = q_sjf.front();
-    q_sjf.erase(q_sjf.begin());
-    if (p.started == false) {
-        p.start = timeOS;
-        p.started = true;
-        p.waitTime = timeOS - p.arrival;
-    }
-    timeOS += p.BTrestante;
-    p.BTrestante = 0;
-    p.finish = timeOS;
-    finished.push_back(p);      
-}
 
-
-void ShortestJobFirstMLQ(vector<Proceso> q_sjf, int timeOS, vector<Proceso> finished,queue<Proceso> q_rr) {
+void ShortestJobFirstMLQ(vector<Proceso> &q_sjf, int &timeOS, vector<Proceso> &finished,queue<Proceso> &q_rr) {
     sort(q_sjf.begin(), q_sjf.end(), compareBurstTime);// Sort by shortest job first
-    Proceso p = q_sjf.front();
-    if (p.started == false) {
-        p.start = timeOS;
-        p.started = true;
-        p.waitTime = timeOS - p.arrival;
+    if (q_sjf.front().started == false) {
+        q_sjf.front().start = timeOS;
+        q_sjf.front().started = true;
+        q_sjf.front().waitTime = timeOS - q_sjf.front().arrival;
     }else{
-        p.waitTime += timeOS - p.lastExecutedTime;
+        q_sjf.front().waitTime += timeOS - q_sjf.front().lastExecutedTime;
     }
-    while (p.BTrestante > 0) {
+    while (q_sjf.front().BTrestante > 0) {
         // Chequear si llega un proceso de mayor prioridad
         if (!q_rr.empty() && q_rr.front().arrival <= timeOS) {
-            p.lastExecutedTime = timeOS;
+            q_sjf.front().lastExecutedTime = timeOS;
             return;  // Interrumpir y ejecutar el proceso de mayor prioridad
         }
         timeOS++;
-        p.BTrestante--;
-        p.lastExecutedTime = timeOS;
+        q_sjf.front().BTrestante--;
+        q_sjf.front().lastExecutedTime = timeOS;
     }
+    q_sjf.front().finish = timeOS;
+    finished.push_back(q_sjf.front());
     q_sjf.erase(q_sjf.begin());
-    p.finish = timeOS;
-    finished.push_back(p);
 }
 
 
-void FCFSMFLQ(queue<Proceso> q_fcfs, int timeOS, vector<Proceso> finished,queue<Proceso> q_rr1 ,queue<Proceso> q_rr2) {
-    Proceso p = q_fcfs.front();
-    if (!p.started){
-        p.start = timeOS;
-        p.started = true;
-        p.waitTime = timeOS - p.arrival;
+
+int FCFSMFLQ(queue<Proceso> &q_fcfs, int &timeOS, vector<Proceso> &finished,queue<Proceso> &q_rr1 ,queue<Proceso> &q_rr2) {
+    if (!q_fcfs.front().started){
+        q_fcfs.front().start = timeOS;
+        q_fcfs.front().started = true;
+        q_fcfs.front().waitTime = timeOS - q_fcfs.front().arrival;
     }else{
-        p.waitTime += timeOS - p.lastExecutedTime;
+        q_fcfs.front().waitTime += timeOS - q_fcfs.front().lastExecutedTime;
     }
-    while (p.BTrestante > 0) {
+    while (q_fcfs.front().BTrestante > 0) {
         // Chequear si llega un proceso de mayor prioridad
         if ((!q_rr1.empty() || !q_rr2.empty()) && (q_rr1.front().arrival == timeOS || q_rr2.front().arrival == timeOS)){
-            p.lastExecutedTime = timeOS;
-            return;  // Interrumpir y ejecutar el proceso de mayor prioridad
+            q_fcfs.front().lastExecutedTime = timeOS;
+            return 1;  // Interrumpir y ejecutar el proceso de mayor prioridad
         }
         // Ejecutar el proceso y actualizar tiempos
         timeOS++;
-        p.BTrestante--;
-        p.lastExecutedTime = timeOS;
+        q_fcfs.front().BTrestante--;
+        q_fcfs.front().lastExecutedTime = timeOS;
     }
+    q_fcfs.front().finish = timeOS;
+    finished.push_back(q_fcfs.front());
     q_fcfs.pop();
-    p.finish = timeOS;
-    finished.push_back(p);
+    return 0;
 }
 
-void FCFSMLQ(queue<Proceso> q_fcfs, int timeOS, vector<Proceso> finished,queue<Proceso> q_rr ,vector<Proceso> q_sjf) {
-    Proceso p = q_fcfs.front();
-    if (!p.started) {
-        p.start = timeOS;
-        p.started = true;
-        p.waitTime = timeOS - p.arrival;
+void FCFSMLQ(queue<Proceso> &q_fcfs, int &timeOS, vector<Proceso> &finished,queue<Proceso> &q_rr ,vector<Proceso> &q_sjf) {
+    if (!q_fcfs.front().started) {
+        q_fcfs.front().start = timeOS;
+        q_fcfs.front().started = true;
+        q_fcfs.front().waitTime = timeOS - q_fcfs.front().arrival;
     }else{
-        p.waitTime += timeOS - p.lastExecutedTime;
+        q_fcfs.front().waitTime += timeOS - q_fcfs.front().lastExecutedTime;
     }
-    while (p.BTrestante > 0) {
+    while (q_fcfs.front().BTrestante > 0) {
         // Chequear si llega un proceso de mayor prioridad
         if ((!q_rr.empty() || !q_sjf.empty()) && (q_rr.front().arrival == timeOS || q_sjf[0].arrival == timeOS)){
-            p.lastExecutedTime = timeOS;
+            q_fcfs.front().lastExecutedTime = timeOS;
             return;  // Interrumpir y ejecutar el proceso de mayor prioridad
         }
         // Ejecutar el proceso y actualizar tiempos
         timeOS++;
-        p.BTrestante--;
-        p.lastExecutedTime = timeOS;
+        q_fcfs.front().BTrestante--;
+        q_fcfs.front().lastExecutedTime = timeOS;
     }
+    q_fcfs.front().finish = timeOS;
+    finished.push_back(q_fcfs.front());
     q_fcfs.pop();
-    p.finish = timeOS;
-    finished.push_back(p);
 }
 
 
-void MLQ(vector<Proceso> procesos, int quantumRR) {
+void MLQ(vector<Proceso> &procesos, int quantumRR) {
     int n = procesos.size();
     queue<Proceso> q_rr;                 // Queue for Round Robin
     vector<Proceso> q_sjf;               // Vector for Shortest Job First
@@ -269,21 +275,34 @@ void MLQ(vector<Proceso> procesos, int quantumRR) {
     }
 
     // Calculate and display average waiting time and turnaround time
-    float totalWaitingTime = 0, totalTurnaroundTime = 0;
-    for (Proceso &p : finished) {
-        int waitingTime = p.waitTime;
-        int turnaroundTime = p.finish - p.arrival;
+    float totalWaitingTime = 0, totalTurnaroundTime = 0, totalCT = 0, totalrt = 0;
+    for (int i = 0 ; i < finished.size(); i++) {
+        int waitingTime = finished[i].waitTime;
+        int turnaroundTime = finished[i].finish - finished[i].arrival;
         totalWaitingTime += waitingTime;
         totalTurnaroundTime += turnaroundTime;
-        cout << "Process " << p.pid << " executed from " << p.start << " to " << p.finish
-             << " with waiting time: " << waitingTime << endl;
+        totalCT += finished[i].finish;
+        totalrt+=finished[i].start;
+        cout << "Process " << finished[i].pid << " executed from " << finished[i].start << " to " << finished[i].finish<< endl;
+        cout << "Waiting time: " << waitingTime << endl;
+        cout << "Turnaround time: "<< turnaroundTime << endl;
+        cout << "Response Time: " << finished[i].start << endl<< endl;
     }
-
-    cout << "Waiting Time: " << totalWaitingTime  << endl;
-    cout << "Turnaround Time: " << totalTurnaroundTime  << endl;
+    cout << "________________________________________________________________________________________________"<<endl;
+    cout << "Waiting Time PROM: " << totalWaitingTime/finished.size()  << endl;
+    cout << "Turnaround Time PROM: " << totalTurnaroundTime/finished.size()  << endl;
+    cout << "Response Time PROM: " << totalCT/finished.size()  << endl;
+    cout << "Complete Time PROM: " << totalrt/finished.size()  << endl;
 }
-
-void MLFQ(vector<Proceso>procesos, int quantumRR1,int quantumRR2){
+void imprimirCola(const queue<Proceso>& q, const string& nombreCola) {
+    cout << "Cola " << nombreCola << ":" << endl;
+    queue<Proceso> copia = q;
+    while (!copia.empty()) {
+        cout << copia.front().pid << " "<< copia.front().arrival<< " " << copia.front().BT << endl;
+        copia.pop();
+    }
+}
+void MLFQ(vector<Proceso>&procesos, int quantumRR1,int quantumRR2){
     int n = procesos.size();
     queue<Proceso> q_rr1;                 // Queue for Round Robin 1
     queue<Proceso> q_rr2;                 // Queue for Round Robin 2
@@ -291,7 +310,6 @@ void MLFQ(vector<Proceso>procesos, int quantumRR1,int quantumRR2){
     vector<Proceso> finished;
     int timeOS = 0;
     sort(procesos.begin(), procesos.end(), compareArrival);
-
     int index = 0;
     // Agregar los procesos a sus respectivas Colas
     while (index < n ) {
@@ -304,42 +322,50 @@ void MLFQ(vector<Proceso>procesos, int quantumRR1,int quantumRR2){
             }
             index++;
     }
-    while (!q_rr1.empty() || !q_rr2.empty() || !q_fcfs.empty()) {
-
-        if (!q_rr1.empty() && q_rr1.front().arrival <= timeOS) {
-            RoundRobinMLFQ(q_rr1,timeOS,quantumRR1,finished,q_rr2);
+    while (!q_rr1.empty() || !q_rr2.empty() || !q_fcfs.empty()){
+        if (!q_rr1.empty() && q_rr1.front().arrival <= timeOS){
+            int pr1 = RoundRobinMLFQ(q_rr1,timeOS,quantumRR1,finished,q_rr2);
         }
         else if (!q_rr2.empty() && q_rr2.front().arrival <= timeOS) {
-            RoundRobinMLFQ(q_rr2,timeOS,quantumRR2,finished,q_fcfs);
+            int pr2 = RoundRobinMLFQ2(q_rr2,timeOS,quantumRR2,finished,q_rr1,q_fcfs);
         }
         //  First Come First Served queue
         else if (!q_fcfs.empty()&& q_fcfs.front().arrival <= timeOS) {
-            FCFSMFLQ(q_fcfs,timeOS,finished,q_rr1,q_rr2);
+            int pr3 = FCFSMFLQ(q_fcfs,timeOS,finished,q_rr1,q_rr2);
         }
     }
     // Calculate and display average waiting time and turnaround time
-    float totalWaitingTime = 0, totalTurnaroundTime = 0;
-    for (Proceso &p : finished) {
-        int waitingTime = p.waitTime;
-        int turnaroundTime = p.finish - p.arrival;
+    float totalWaitingTime = 0, totalTurnaroundTime = 0, totalCT = 0, totalrt = 0;
+    for (int i = 0 ; i < finished.size(); i++) {
+        int waitingTime = finished[i].waitTime;
+        int turnaroundTime = finished[i].finish - finished[i].arrival;
         totalWaitingTime += waitingTime;
         totalTurnaroundTime += turnaroundTime;
-        cout << "Process " << p.pid << " executed from " << p.start << " to " << p.finish;
-        cout << " with waiting time: " << waitingTime << endl;
+        totalCT += finished[i].finish;
+        totalrt+=finished[i].start;
+        cout << "Process " << finished[i].pid << " executed from " << finished[i].start << " to " << finished[i].finish<< endl;
+        cout << "Waiting time: " << waitingTime << endl;
+        cout << "Turnaround time: "<< turnaroundTime << endl;
+        cout << "Response Time: " << finished[i].start << endl<< endl;
     }
-    cout << "Waiting Time: " << totalWaitingTime << endl;
-    cout << "Turnaround Time: " << totalTurnaroundTime << endl;
+    cout << "________________________________________________________________________________________________"<<endl;
+    cout << "Waiting Time PROM: " << totalWaitingTime/finished.size()  << endl;
+    cout << "Turnaround Time PROM: " << totalTurnaroundTime/finished.size()  << endl;
+    cout << "Response Time PROM: " << totalCT/finished.size()  << endl;
+    cout << "Complete Time PROM: " << totalrt/finished.size()  << endl;
+
 
 }
 vector<Proceso> retornarArrayProcesos(){
-    vector<vector<int>>entrada = guardarinstrucciones("procesos.txt");
+    vector<vector<string>>entrada = guardarinstrucciones("procesos.txt");
     vector<Proceso> procesos;
     for (int i = 0; i < entrada.size(); i++){
         Proceso newp;
-        newp.pid = entrada[i][0];
-        newp.arrival = entrada[i][1];
-        newp.BT = entrada[i][2];
-        newp.priority = entrada[i][3];
+        newp.pid = stoi(entrada[i][0]);
+        newp.arrival = stoi(entrada[i][1]);
+        newp.BT = stoi(entrada[i][2]);
+        newp.BTrestante = stoi(entrada[i][2]);
+        newp.priority = stoi(entrada[i][3]);
         procesos.push_back(newp);
     }
     return procesos;
